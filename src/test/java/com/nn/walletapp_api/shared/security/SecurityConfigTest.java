@@ -1,5 +1,6 @@
 package com.nn.walletapp_api.shared.security;
 
+import com.nn.walletapp_api.shared.security.ratelimit.RateLimitingService;
 import com.nn.walletapp_api.support.SecurityTestUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Clock;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -27,6 +29,10 @@ class SecurityConfigTest {
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
+    @MockitoBean
+    private RateLimitingService rateLimitingService;
+    @MockitoBean
+    private Clock clock;
 
     @RestController
     static class TestSecuredController {
