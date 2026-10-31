@@ -1,0 +1,72 @@
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+spring:
+  application:
+    name: walletapp-api
+  threads:
+    virtual:
+      enabled: true
+
+  # RDBMS & Persistence Configuration
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:walletapp_db}
+    username: ${POSTGRES_USER:wallet_user}
+    password: ${POSTGRES_PASSWORD:wallet_secret_password}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: WalletAppHikariPool
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          batch_size: 25
+          order_inserts: true
+          order_updates: true
+
+  # Evolutionary Database Migration (Liquibase)
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+
+  # Stateless OAuth 2.0 Resource Server (RS256 via JWKS)
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWKS_ISSUER_URI:http://localhost:8081/realms/walletapp-realm}
+
+# Rate Limiting Engine (Bucket4j In-Memory RAM)
+app:
+  security:
+    rate-limit:
+      enabled: ${APP_SECURITY_RATE_LIMIT_ENABLED:true}
+      capacity: ${APP_SECURITY_RATE_LIMIT_CAPACITY:10}
+      refill-tokens: ${APP_SECURITY_RATE_LIMIT_REFILL_TOKENS:10}
+      refill-duration-seconds: ${APP_SECURITY_RATE_LIMIT_REFILL_DURATION_SECONDS:60}
+
+# Observability & Health Indicators
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
