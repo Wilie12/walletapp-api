@@ -1,0 +1,29 @@
+{
+  "realm": "walletapp-realm",
+  "enabled": true,
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "verifyEmail": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "ROLE_USER",
+        "description": "Standard Wallet User"
+      },
+      {
+        "name": "ROLE_ADMIN",
+        "description": "Administrative Operator"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "walletapp-client",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true
+    }
+  ]
+}
