@@ -2,6 +2,7 @@ package com.nn.walletapp_api.wallet.service;
 
 import com.nn.walletapp_api.shared.security.domain.RequesterContext;
 import com.nn.walletapp_api.wallet.api.mapper.WalletMapper;
+import com.nn.walletapp_api.wallet.api.request.WalletUpdateRequest;
 import com.nn.walletapp_api.wallet.api.response.WalletResponse;
 import com.nn.walletapp_api.wallet.domain.Wallet;
 import com.nn.walletapp_api.wallet.exception.WalletNotFoundException;
@@ -38,6 +39,17 @@ public class WalletService {
     @Transactional(readOnly = true)
     public WalletResponse getWalletById(UUID walletId, RequesterContext requester) {
         Wallet wallet = getValidatedWallet(walletId, requester);
+        return walletMapper.toResponse(wallet);
+    }
+
+    @Transactional
+    public WalletResponse updateWalletLabel(UUID walletId, WalletUpdateRequest request, RequesterContext requester) {
+        Objects.requireNonNull(request, "request must not be null");
+
+        Wallet wallet = getValidatedWallet(walletId, requester);
+        wallet.verifyOwnership(requester.userId());
+        wallet.updateLabel(request.label());
+
         return walletMapper.toResponse(wallet);
     }
 

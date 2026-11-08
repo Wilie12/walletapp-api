@@ -3,9 +3,11 @@ package com.nn.walletapp_api.wallet.service;
 import com.nn.walletapp_api.shared.security.domain.AccessLevel;
 import com.nn.walletapp_api.shared.security.domain.RequesterContext;
 import com.nn.walletapp_api.wallet.api.mapper.WalletMapper;
+import com.nn.walletapp_api.wallet.api.request.WalletUpdateRequest;
 import com.nn.walletapp_api.wallet.api.response.WalletResponse;
 import com.nn.walletapp_api.wallet.domain.Wallet;
 import com.nn.walletapp_api.wallet.domain.WalletStatus;
+import com.nn.walletapp_api.wallet.exception.WalletLockedException;
 import com.nn.walletapp_api.wallet.exception.WalletNotFoundException;
 import com.nn.walletapp_api.wallet.exception.WalletOwnershipException;
 import com.nn.walletapp_api.wallet.repository.WalletRepository;
@@ -184,6 +186,75 @@ public class WalletServiceTest {
                 .isInstanceOf(WalletNotFoundException.class)
                 .hasMessageContaining(nonExistentWalletId.toString());
 
+        then(walletMapper).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("Should update wallet label relying on Hibernate dirty checking when owner requests change")
+    void shouldUpdateWalletLabelRelyingOnDirtyChecking() {
+        // given
+        UUID ownerId = UUID.randomUUID();
+        RequesterContext ownerContext = new RequesterContext(ownerId, AccessLevel.STANDARD);
+        Wallet wallet = Wallet.createDefault(ownerId, FIXED_INSTANT);
+        UUID walletId = wallet.getId();
+        WalletUpdateRequest updateRequest = new WalletUpdateRequest("Holiday Savings");
+
+        given(walletRepository.findById(walletId)).willReturn(Optional.of(wallet));
+        given(walletMapper.toResponse(wallet)).willAnswer(invocation -> toResponse(invocation.getArgument(0)));
+
+        // when
+        WalletResponse result = walletService.updateWalletLabel(walletId, updateRequest, ownerContext);
+
+        // then
+        assertThat(wallet.getLabel()).isEqualTo("Holiday Savings");
+        assertThat(result.label()).isEqualTo("Holiday Savings");
+        then(walletRepository).should().findById(walletId);
+        then(walletRepository).should(never()).save(any(Wallet.class));
+        then(walletMapper).should().toResponse(wallet);
+    }
+
+    @Test
+    @DisplayName("Should throw WalletLockedException when attempting to update label on locked wallet")
+    void shouldThrowWalletLockedExceptionWhenUpdatingLockedWalletLabel() {
+        // given
+        UUID ownerId = UUID.randomUUID();
+        RequesterContext ownerContext = new RequesterContext(ownerId, AccessLevel.STANDARD);
+        Wallet lockedWallet = Wallet.createDefault(ownerId, FIXED_INSTANT);
+        lockedWallet.lock();
+        UUID walletId = lockedWallet.getId();
+        WalletUpdateRequest updateRequest = new WalletUpdateRequest("Attempted Label Change");
+
+        given(walletRepository.findById(walletId)).willReturn(Optional.of(lockedWallet));
+
+        // when & then
+        assertThatThrownBy(() -> walletService.updateWalletLabel(walletId, updateRequest, ownerContext))
+                .isInstanceOf(WalletLockedException.class)
+                .hasMessageContaining("in LOCKED state");
+
+        then(walletRepository).should(never()).save(any(Wallet.class));
+        then(walletMapper).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("Should throw WalletOwnershipException when non-owner attempts to update wallet label")
+    void shouldThrowWalletOwnershipExceptionWhenNonOwnerUpdatesLabel() {
+        // given
+        UUID ownerId = UUID.randomUUID();
+        UUID otherUserId = UUID.randomUUID();
+        RequesterContext attackerContext = new RequesterContext(otherUserId, AccessLevel.STANDARD);
+        Wallet wallet = Wallet.createDefault(ownerId, FIXED_INSTANT);
+        UUID walletId = wallet.getId();
+        WalletUpdateRequest updateRequest = new WalletUpdateRequest("Hijacked Wallet");
+
+        given(walletRepository.findById(walletId)).willReturn(Optional.of(wallet));
+
+        // when & then
+        assertThatThrownBy(() -> walletService.updateWalletLabel(walletId, updateRequest, attackerContext))
+                .isInstanceOf(WalletOwnershipException.class)
+                .hasMessageContaining("Security violation");
+
+        assertThat(wallet.getLabel()).isEqualTo("Default Wallet");
+        then(walletRepository).should(never()).save(any(Wallet.class));
         then(walletMapper).shouldHaveNoInteractions();
     }
 
