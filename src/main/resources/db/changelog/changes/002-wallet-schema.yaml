@@ -1,0 +1,124 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-create-wallets-table
+      author: Wilie12
+      changes:
+        - createTable:
+            tableName: wallets
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_wallets
+              - column:
+                  name: owner_sub
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_wallets_owner_sub
+              - column:
+                  name: label
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: balance
+                  type: NUMERIC(19,4)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: currency
+                  type: VARCHAR(3)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 002-create-wallets-aud-table
+      author: Wilie12
+      changes:
+        - createTable:
+            tableName: wallets_aud
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: rev
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: revtype
+                  type: SMALLINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: owner_sub
+                  type: UUID
+                  constraints:
+                    nullable: true
+              - column:
+                  name: label
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: balance
+                  type: NUMERIC(19,4)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: currency
+                  type: VARCHAR(3)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: status
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: true
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: true
+        - addPrimaryKey:
+            tableName: wallets_aud
+            columnNames: id, rev
+            constraintName: pk_wallets_aud
+        - addForeignKeyConstraint:
+            baseTableName: wallets_aud
+            baseColumnNames: rev
+            constraintName: fk_wallets_aud_revinfo
+            referencedTableName: revinfo
+            referencedColumnNames: rev
