@@ -13,6 +13,7 @@ import com.nn.walletapp_api.wallet.exception.WalletLockedException;
 import com.nn.walletapp_api.wallet.exception.WalletNotFoundException;
 import com.nn.walletapp_api.wallet.exception.WalletOwnershipException;
 import com.nn.walletapp_api.wallet.repository.WalletRepository;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,12 +52,15 @@ public class WalletServiceTest {
     @Mock
     private WalletMapper walletMapper;
 
+    @Mock
+    private EntityManager entityManager;
+
     private WalletService walletService;
 
     @BeforeEach
     void setUp() {
         Clock fixedClock = Clock.fixed(FIXED_INSTANT, ZoneOffset.UTC);
-        walletService = new WalletService(walletRepository, walletMapper, fixedClock);
+        walletService = new WalletService(walletRepository, walletMapper, entityManager, fixedClock);
     }
 
     @Test
@@ -394,6 +398,21 @@ public class WalletServiceTest {
                 .hasMessageContaining(nonExistentWalletId.toString());
 
         then(walletMapper).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("Should throw WalletNotFoundException when querying audit history for non-existent wallet")
+    void shouldThrowWalletNotFoundExceptionWhenAuditWalletMissing() {
+        // given
+        UUID nonExistentWalletId = UUID.randomUUID();
+        given(walletRepository.existsById(nonExistentWalletId)).willReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> walletService.getWalletAuditHistory(nonExistentWalletId))
+                .isInstanceOf(WalletNotFoundException.class)
+                .hasMessageContaining(nonExistentWalletId.toString());
+
+        then(entityManager).shouldHaveNoInteractions();
     }
 
     private WalletResponse toResponse(Wallet wallet) {
