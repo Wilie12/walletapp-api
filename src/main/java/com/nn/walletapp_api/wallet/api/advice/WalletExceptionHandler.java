@@ -59,6 +59,15 @@ public class WalletExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    public ProblemDetail handleIllegalWalletState(IllegalStateException ex, WebRequest request) {
+        log.warn("Illegal wallet state transition: {}", ex.getMessage());
+
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        enrichProblemDetail(problem, "wallet-state-conflict", "Wallet State Conflict", request);
+        return problem;
+    }
+
     @ExceptionHandler(InsufficientFundsException.class)
     public ProblemDetail handleInsufficientFunds(InsufficientFundsException ex, WebRequest request) {
         log.warn("Operation rejected due to insufficient funds: {}", ex.getMessage());
