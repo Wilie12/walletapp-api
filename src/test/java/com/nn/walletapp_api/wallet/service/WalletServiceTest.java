@@ -1,8 +1,10 @@
 package com.nn.walletapp_api.wallet.service;
 
+import com.nn.walletapp_api.shared.api.response.PageResponse;
 import com.nn.walletapp_api.shared.security.domain.AccessLevel;
 import com.nn.walletapp_api.shared.security.domain.RequesterContext;
 import com.nn.walletapp_api.wallet.api.mapper.WalletMapper;
+import com.nn.walletapp_api.wallet.api.request.WalletStatusUpdateRequest;
 import com.nn.walletapp_api.wallet.api.request.WalletUpdateRequest;
 import com.nn.walletapp_api.wallet.api.response.WalletResponse;
 import com.nn.walletapp_api.wallet.domain.Wallet;
@@ -11,6 +13,7 @@ import com.nn.walletapp_api.wallet.exception.WalletLockedException;
 import com.nn.walletapp_api.wallet.exception.WalletNotFoundException;
 import com.nn.walletapp_api.wallet.exception.WalletOwnershipException;
 import com.nn.walletapp_api.wallet.repository.WalletRepository;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,11 +21,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -44,12 +52,15 @@ public class WalletServiceTest {
     @Mock
     private WalletMapper walletMapper;
 
+    @Mock
+    private EntityManager entityManager;
+
     private WalletService walletService;
 
     @BeforeEach
     void setUp() {
         Clock fixedClock = Clock.fixed(FIXED_INSTANT, ZoneOffset.UTC);
-        walletService = new WalletService(walletRepository, walletMapper, fixedClock);
+        walletService = new WalletService(walletRepository, walletMapper, entityManager, fixedClock);
     }
 
     @Test
@@ -256,6 +267,152 @@ public class WalletServiceTest {
         assertThat(wallet.getLabel()).isEqualTo("Default Wallet");
         then(walletRepository).should(never()).save(any(Wallet.class));
         then(walletMapper).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("Should return paginated list of all wallets mapped to PageResponse")
+    void shouldReturnPaginatedListOfAllWallets() {
+        // given
+        Pageable pageable = PageRequest.of(0, 10);
+        Wallet firstWallet = Wallet.createDefault(UUID.randomUUID(), FIXED_INSTANT);
+        Wallet secondWallet = Wallet.createDefault(UUID.randomUUID(), FIXED_INSTANT);
+        WalletResponse firstResponse = toResponse(firstWallet);
+        WalletResponse secondResponse = toResponse(secondWallet);
+
+        Page<Wallet> walletPage = new PageImpl<>(List.of(firstWallet, secondWallet), pageable, 2);
+
+        given(walletRepository.findAll(pageable)).willReturn(walletPage);
+        given(walletMapper.toResponse(firstWallet)).willReturn(firstResponse);
+        given(walletMapper.toResponse(secondWallet)).willReturn(secondResponse);
+
+        // when
+        PageResponse<WalletResponse> result = walletService.getAllWallets(pageable);
+
+        // then
+        assertThat(result.content()).containsExactly(firstResponse, secondResponse);
+        assertThat(result.pageNumber()).isZero();
+        assertThat(result.pageSize()).isEqualTo(10);
+        assertThat(result.totalElements()).isEqualTo(2);
+        assertThat(result.totalPages()).isEqualTo(1);
+        assertThat(result.isFirst()).isTrue();
+        assertThat(result.isLast()).isTrue();
+        then(walletRepository).should().findAll(pageable);
+    }
+
+    @Test
+    @DisplayName("Should lock active wallet and rely on Hibernate dirty checking")
+    void shouldLockActiveWallet() {
+        // given
+        Wallet wallet = Wallet.createDefault(UUID.randomUUID(), FIXED_INSTANT);
+        UUID walletId = wallet.getId();
+        WalletStatusUpdateRequest request = new WalletStatusUpdateRequest(WalletStatus.LOCKED);
+
+        given(walletRepository.findById(walletId)).willReturn(Optional.of(wallet));
+        given(walletMapper.toResponse(wallet)).willAnswer(invocation -> toResponse(invocation.getArgument(0)));
+
+        // when
+        WalletResponse result = walletService.updateWalletStatus(walletId, request);
+
+        // then
+        assertThat(wallet.getStatus()).isEqualTo(WalletStatus.LOCKED);
+        assertThat(result.status()).isEqualTo(WalletStatus.LOCKED);
+        then(walletRepository).should().findById(walletId);
+        then(walletRepository).should(never()).save(any(Wallet.class));
+        then(walletMapper).should().toResponse(wallet);
+    }
+
+    @Test
+    @DisplayName("Should unlock locked wallet and rely on Hibernate dirty checking")
+    void shouldUnlockLockedWallet() {
+        // given
+        Wallet wallet = Wallet.createDefault(UUID.randomUUID(), FIXED_INSTANT);
+        wallet.lock();
+        UUID walletId = wallet.getId();
+        WalletStatusUpdateRequest request = new WalletStatusUpdateRequest(WalletStatus.ACTIVE);
+
+        given(walletRepository.findById(walletId)).willReturn(Optional.of(wallet));
+        given(walletMapper.toResponse(wallet)).willAnswer(invocation -> toResponse(invocation.getArgument(0)));
+
+        // when
+        WalletResponse result = walletService.updateWalletStatus(walletId, request);
+
+        // then
+        assertThat(wallet.getStatus()).isEqualTo(WalletStatus.ACTIVE);
+        assertThat(result.status()).isEqualTo(WalletStatus.ACTIVE);
+        then(walletRepository).should().findById(walletId);
+        then(walletRepository).should(never()).save(any(Wallet.class));
+        then(walletMapper).should().toResponse(wallet);
+    }
+
+    @Test
+    @DisplayName("Should throw WalletLockedException when locking an already locked wallet")
+    void shouldThrowWalletLockedExceptionWhenLockingAlreadyLockedWallet() {
+        // given
+        Wallet wallet = Wallet.createDefault(UUID.randomUUID(), FIXED_INSTANT);
+        wallet.lock();
+        UUID walletId = wallet.getId();
+        WalletStatusUpdateRequest request = new WalletStatusUpdateRequest(WalletStatus.LOCKED);
+
+        given(walletRepository.findById(walletId)).willReturn(Optional.of(wallet));
+
+        // when & then
+        assertThatThrownBy(() -> walletService.updateWalletStatus(walletId, request))
+                .isInstanceOf(WalletLockedException.class)
+                .hasMessageContaining("already locked");
+
+        then(walletRepository).should(never()).save(any(Wallet.class));
+        then(walletMapper).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("Should throw IllegalStateException when unlocking an already active wallet")
+    void shouldThrowIllegalStateExceptionWhenUnlockingAlreadyActiveWallet() {
+        // given
+        Wallet wallet = Wallet.createDefault(UUID.randomUUID(), FIXED_INSTANT);
+        UUID walletId = wallet.getId();
+        WalletStatusUpdateRequest request = new WalletStatusUpdateRequest(WalletStatus.ACTIVE);
+
+        given(walletRepository.findById(walletId)).willReturn(Optional.of(wallet));
+
+        // when & then
+        assertThatThrownBy(() -> walletService.updateWalletStatus(walletId, request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("already active");
+
+        then(walletRepository).should(never()).save(any(Wallet.class));
+        then(walletMapper).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("Should throw WalletNotFoundException when updating status of non-existent wallet")
+    void shouldThrowWalletNotFoundExceptionWhenUpdatingStatusOfMissingWallet() {
+        // given
+        UUID nonExistentWalletId = UUID.randomUUID();
+        WalletStatusUpdateRequest request = new WalletStatusUpdateRequest(WalletStatus.LOCKED);
+
+        given(walletRepository.findById(nonExistentWalletId)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> walletService.updateWalletStatus(nonExistentWalletId, request))
+                .isInstanceOf(WalletNotFoundException.class)
+                .hasMessageContaining(nonExistentWalletId.toString());
+
+        then(walletMapper).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("Should throw WalletNotFoundException when querying audit history for non-existent wallet")
+    void shouldThrowWalletNotFoundExceptionWhenAuditWalletMissing() {
+        // given
+        UUID nonExistentWalletId = UUID.randomUUID();
+        given(walletRepository.existsById(nonExistentWalletId)).willReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> walletService.getWalletAuditHistory(nonExistentWalletId))
+                .isInstanceOf(WalletNotFoundException.class)
+                .hasMessageContaining(nonExistentWalletId.toString());
+
+        then(entityManager).shouldHaveNoInteractions();
     }
 
     private WalletResponse toResponse(Wallet wallet) {

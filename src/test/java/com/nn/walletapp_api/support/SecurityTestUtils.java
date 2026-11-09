@@ -1,5 +1,6 @@
 package com.nn.walletapp_api.support;
 
+import com.nn.walletapp_api.shared.security.KeycloakRealmRoleConverter;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 
@@ -19,7 +20,8 @@ public final class SecurityTestUtils {
         return SecurityMockMvcRequestPostProcessors.jwt()
                 .jwt(builder -> builder
                         .subject(userId.toString())
-                        .claim("realm_access", Map.of("roles", List.of(roles))));
+                        .claim("realm_access", Map.of("roles", List.of(roles))))
+                        .authorities(new KeycloakRealmRoleConverter());
     }
 
     public static Jwt createJwt(UUID userId, List<String> roles, Clock clock) {
