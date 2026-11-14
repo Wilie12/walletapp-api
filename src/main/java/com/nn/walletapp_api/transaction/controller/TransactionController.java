@@ -3,6 +3,7 @@ package com.nn.walletapp_api.transaction.controller;
 import com.nn.walletapp_api.shared.security.annotation.CurrentRequester;
 import com.nn.walletapp_api.shared.security.domain.RequesterContext;
 import com.nn.walletapp_api.transaction.api.request.TopUpRequest;
+import com.nn.walletapp_api.transaction.api.request.TransferRequest;
 import com.nn.walletapp_api.transaction.api.response.TransactionResponse;
 import com.nn.walletapp_api.transaction.service.TransactionService;
 import jakarta.validation.Valid;
@@ -34,5 +35,13 @@ public class TransactionController {
                                      @Valid @RequestBody TopUpRequest request,
                                      @CurrentRequester RequesterContext requester) {
         return transactionService.topUp(idempotencyKey, request, requester);
+    }
+
+    @PostMapping("/transfer")
+    @ResponseStatus(HttpStatus.CREATED)
+    public TransactionResponse transfer(@RequestHeader(IDEMPOTENCY_KEY_HEADER) UUID idempotencyKey,
+                                        @Valid @RequestBody TransferRequest request,
+                                        @CurrentRequester RequesterContext requester) {
+        return transactionService.transfer(idempotencyKey, request, requester);
     }
 }

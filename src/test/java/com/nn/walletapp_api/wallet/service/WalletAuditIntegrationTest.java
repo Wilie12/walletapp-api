@@ -4,6 +4,7 @@ import com.nn.walletapp_api.shared.security.domain.AccessLevel;
 import com.nn.walletapp_api.shared.security.domain.RequesterContext;
 import com.nn.walletapp_api.support.BaseIntegrationTest;
 import com.nn.walletapp_api.support.SecurityTestUtils;
+import com.nn.walletapp_api.transaction.repository.TransactionRepository;
 import com.nn.walletapp_api.wallet.api.request.WalletStatusUpdateRequest;
 import com.nn.walletapp_api.wallet.api.response.WalletAuditResponse;
 import com.nn.walletapp_api.wallet.api.response.WalletResponse;
@@ -38,6 +39,9 @@ public class WalletAuditIntegrationTest extends BaseIntegrationTest {
     private WalletRepository walletRepository;
 
     @Autowired
+    private TransactionRepository transactionRepository;
+
+    @Autowired
     private TransactionTemplate transactionTemplate;
 
     @Autowired
@@ -45,6 +49,7 @@ public class WalletAuditIntegrationTest extends BaseIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        transactionRepository.deleteAll();
         walletRepository.deleteAll();
         SecurityContextHolder.clearContext();
     }

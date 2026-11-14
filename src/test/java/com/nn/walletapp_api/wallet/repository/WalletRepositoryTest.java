@@ -1,6 +1,7 @@
 package com.nn.walletapp_api.wallet.repository;
 
 import com.nn.walletapp_api.support.BaseIntegrationTest;
+import com.nn.walletapp_api.transaction.repository.TransactionRepository;
 import com.nn.walletapp_api.wallet.domain.Wallet;
 import com.nn.walletapp_api.wallet.domain.WalletStatus;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,12 +28,16 @@ public class WalletRepositoryTest extends BaseIntegrationTest {
     private WalletRepository walletRepository;
 
     @Autowired
+    private TransactionRepository transactionRepository;
+
+    @Autowired
     private TransactionTemplate transactionTemplate;
 
     private final Clock fixedClock = Clock.fixed(Instant.parse("2026-11-02T12:00:00Z"), ZoneOffset.UTC);
 
     @BeforeEach
     void setUp() {
+        transactionRepository.deleteAll();
         walletRepository.deleteAll();
     }
 
