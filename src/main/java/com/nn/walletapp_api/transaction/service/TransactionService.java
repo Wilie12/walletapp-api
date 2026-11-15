@@ -1,5 +1,6 @@
 package com.nn.walletapp_api.transaction.service;
 
+import com.nn.walletapp_api.shared.api.response.PageResponse;
 import com.nn.walletapp_api.shared.security.domain.RequesterContext;
 import com.nn.walletapp_api.transaction.api.mapper.TransactionMapper;
 import com.nn.walletapp_api.transaction.api.request.TopUpRequest;
@@ -8,12 +9,16 @@ import com.nn.walletapp_api.transaction.api.response.TransactionResponse;
 import com.nn.walletapp_api.transaction.domain.Transaction;
 import com.nn.walletapp_api.transaction.exception.DuplicateTransactionException;
 import com.nn.walletapp_api.transaction.exception.SelfTransferException;
+import com.nn.walletapp_api.transaction.exception.TransactionNotFoundException;
+import com.nn.walletapp_api.transaction.exception.TransactionOwnershipException;
 import com.nn.walletapp_api.transaction.repository.TransactionRepository;
 import com.nn.walletapp_api.wallet.domain.Wallet;
 import com.nn.walletapp_api.wallet.exception.WalletNotFoundException;
 import com.nn.walletapp_api.wallet.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -126,5 +131,54 @@ public class TransactionService {
                 savedTransaction.getAmount());
 
         return transactionMapper.toResponse(savedTransaction);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<TransactionResponse> getUserTransactions(RequesterContext requester, Pageable pageable) {
+        Objects.requireNonNull(requester, "requester must not be null");
+        Objects.requireNonNull(pageable, "pageable must not be null");
+
+        Page<TransactionResponse> mappedPage = walletRepository.findByOwnerSub(requester.userId())
+                .map(wallet -> transactionRepository.findAllByWalletId(wallet.getId(), pageable))
+                .orElseGet(() -> Page.empty(pageable))
+                .map(transactionMapper::toResponse);
+
+        return PageResponse.from(mappedPage);
+    }
+
+    @Transactional(readOnly = true)
+    public TransactionResponse getTransactionById(UUID transactionId, RequesterContext requester) {
+        Transaction transaction = getValidatedTransaction(transactionId, requester);
+        return transactionMapper.toResponse(transaction);
+    }
+
+    @Transactional(readOnly = true)
+    public Transaction getValidatedTransaction(UUID transactionId, RequesterContext requester) {
+        Objects.requireNonNull(transactionId, "transactionId must not be null");
+        Objects.requireNonNull(requester, "requester must not be null");
+
+        Transaction transaction = transactionRepository.findById(transactionId)
+                .orElseThrow(() -> new TransactionNotFoundException(transactionId));
+
+        if (!requester.isAdmin()) {
+            Wallet requesterWallet = walletRepository.findByOwnerSub(requester.userId())
+                    .orElseThrow(() -> new TransactionOwnershipException(
+                            String.format("Security violation: requester %s does not own a participating wallet for transaction %s",
+                                    requester.userId(), transactionId)
+                    ));
+            transaction.verifyParticipation(requesterWallet.getId());
+        }
+
+        return transaction;
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<TransactionResponse> getAllTransactions(Pageable pageable) {
+        Objects.requireNonNull(pageable, "pageable must not be null");
+
+        Page<TransactionResponse> mappedPage = transactionRepository.findAll(pageable)
+                .map(transactionMapper::toResponse);
+
+        return PageResponse.from(mappedPage);
     }
 }

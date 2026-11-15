@@ -243,4 +243,47 @@ public class TransactionRepositoryTest extends BaseIntegrationTest {
                 .extracting(Transaction::getId)
                 .containsExactly(transferAToB.getId(), topUpA.getId());
     }
+
+    @Test
+    @DisplayName("Should respect page size boundaries and return empty page when wallet has no transactions")
+    void shouldRespectPaginationBoundariesAndEmptyState() {
+        // given
+        Instant t1 = Instant.now(fixedClock);
+        Wallet activeWallet = walletRepository.saveAndFlush(Wallet.createDefault(UUID.randomUUID(), t1));
+        Wallet emptyWallet = walletRepository.saveAndFlush(Wallet.createDefault(UUID.randomUUID(), t1));
+
+        for (int i = 1; i <= 3; i++) {
+            Transaction tx = Transaction.createTopUp(
+                    Transaction.formatReferenceNumber(transactionRepository.getNextReferenceSequenceValue()),
+                    UUID.randomUUID(),
+                    activeWallet.getId(),
+                    new BigDecimal("10.0000"),
+                    "Tx " + i,
+                    t1.plusSeconds(i * 10L)
+            );
+            transactionRepository.saveAndFlush(tx);
+        }
+
+        PageRequest firstPageReq = PageRequest.of(0, 2, Sort.by(Sort.Direction.DESC, "createdAt"));
+        PageRequest secondPageReq = PageRequest.of(1, 2, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        // when
+        Page<Transaction> firstPage = transactionRepository.findAllByWalletId(activeWallet.getId(), firstPageReq);
+        Page<Transaction> secondPage = transactionRepository.findAllByWalletId(activeWallet.getId(), secondPageReq);
+        Page<Transaction> emptyPage = transactionRepository.findAllByWalletId(emptyWallet.getId(), firstPageReq);
+
+        // then
+        assertThat(firstPage.getContent()).hasSize(2);
+        assertThat(firstPage.getTotalElements()).isEqualTo(3);
+        assertThat(firstPage.getTotalPages()).isEqualTo(2);
+        assertThat(firstPage.isFirst()).isTrue();
+        assertThat(firstPage.isLast()).isFalse();
+
+        assertThat(secondPage.getContent()).hasSize(1);
+        assertThat(secondPage.isFirst()).isFalse();
+        assertThat(secondPage.isLast()).isTrue();
+
+        assertThat(emptyPage.getContent()).isEmpty();
+        assertThat(emptyPage.getTotalElements()).isZero();
+    }
 }

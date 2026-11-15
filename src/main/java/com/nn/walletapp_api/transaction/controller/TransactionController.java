@@ -16,6 +16,12 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import com.nn.walletapp_api.shared.api.response.PageResponse;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.UUID;
 
@@ -43,5 +49,20 @@ public class TransactionController {
                                         @Valid @RequestBody TransferRequest request,
                                         @CurrentRequester RequesterContext requester) {
         return transactionService.transfer(idempotencyKey, request, requester);
+    }
+
+    @GetMapping
+    @ResponseStatus(HttpStatus.OK)
+    public PageResponse<TransactionResponse> getUserTransactions(
+            @CurrentRequester RequesterContext requester,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return transactionService.getUserTransactions(requester, pageable);
+    }
+
+    @GetMapping("/{id}")
+    @ResponseStatus(HttpStatus.OK)
+    public TransactionResponse getTransactionById(@PathVariable("id") UUID id,
+                                                  @CurrentRequester RequesterContext requester) {
+        return transactionService.getTransactionById(id, requester);
     }
 }

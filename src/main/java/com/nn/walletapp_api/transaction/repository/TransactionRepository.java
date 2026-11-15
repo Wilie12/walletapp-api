@@ -21,10 +21,17 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     @Query(value = "SELECT nextval('transaction_number_seq')", nativeQuery = true)
     long getNextReferenceSequenceValue();
 
-    @Query("""
-            SELECT t FROM Transaction t
-            WHERE t.senderWalletId = :walletId
-               OR t.recipientWalletId = :walletId
-            """)
+    @Query(
+            value = """
+                    SELECT t FROM Transaction t
+                    WHERE t.senderWalletId = :walletId
+                       OR t.recipientWalletId = :walletId
+                    """,
+            countQuery = """
+                    SELECT COUNT(t) FROM Transaction t
+                    WHERE t.senderWalletId = :walletId
+                       OR t.recipientWalletId = :walletId
+                    """
+    )
     Page<Transaction> findAllByWalletId(@Param("walletId") UUID walletId, Pageable pageable);
 }
