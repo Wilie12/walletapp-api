@@ -7,6 +7,7 @@ import com.nn.walletapp_api.transaction.api.request.TopUpRequest;
 import com.nn.walletapp_api.transaction.api.request.TransferRequest;
 import com.nn.walletapp_api.transaction.api.response.TransactionResponse;
 import com.nn.walletapp_api.transaction.domain.Transaction;
+import com.nn.walletapp_api.transaction.event.TransactionCompletedEvent;
 import com.nn.walletapp_api.transaction.exception.DuplicateTransactionException;
 import com.nn.walletapp_api.transaction.exception.SelfTransferException;
 import com.nn.walletapp_api.transaction.exception.TransactionNotFoundException;
@@ -17,6 +18,7 @@ import com.nn.walletapp_api.wallet.exception.WalletNotFoundException;
 import com.nn.walletapp_api.wallet.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,7 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final WalletRepository walletRepository;
     private final TransactionMapper transactionMapper;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     @Transactional
@@ -69,6 +72,7 @@ public class TransactionService {
         transaction.markCompleted();
 
         Transaction savedTransaction = transactionRepository.save(transaction);
+        eventPublisher.publishEvent(TransactionCompletedEvent.from(savedTransaction));
 
         log.info("Completed top-up transaction {} for wallet {} with amount {}",
                 savedTransaction.getReferenceNumber(), wallet.getId(), savedTransaction.getAmount());
@@ -123,6 +127,7 @@ public class TransactionService {
         transaction.markCompleted();
 
         Transaction savedTransaction = transactionRepository.save(transaction);
+        eventPublisher.publishEvent(TransactionCompletedEvent.from(savedTransaction));
 
         log.info("Completed P2P transfer {} from wallet {} to wallet {} with amount {}",
                 savedTransaction.getReferenceNumber(),

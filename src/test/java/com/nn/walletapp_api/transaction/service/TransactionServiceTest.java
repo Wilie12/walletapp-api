@@ -10,6 +10,7 @@ import com.nn.walletapp_api.transaction.api.response.TransactionResponse;
 import com.nn.walletapp_api.transaction.domain.Transaction;
 import com.nn.walletapp_api.transaction.domain.TransactionStatus;
 import com.nn.walletapp_api.transaction.domain.TransactionType;
+import com.nn.walletapp_api.transaction.event.TransactionCompletedEvent;
 import com.nn.walletapp_api.transaction.exception.DuplicateTransactionException;
 import com.nn.walletapp_api.transaction.exception.SelfTransferException;
 import com.nn.walletapp_api.transaction.exception.TransactionNotFoundException;
@@ -29,6 +30,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -65,6 +67,9 @@ public class TransactionServiceTest {
     @Mock
     private TransactionMapper transactionMapper;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private TransactionService transactionService;
 
     @BeforeEach
@@ -74,12 +79,13 @@ public class TransactionServiceTest {
                 transactionRepository,
                 walletRepository,
                 transactionMapper,
+                eventPublisher,
                 fixedClock
         );
     }
 
     @Test
-    @DisplayName("Should execute top-up, credit locked wallet, transition transaction to COMPLETED and persist")
+    @DisplayName("Should execute top-up, credit locked wallet, transition transaction to COMPLETED, persist and publish event")
     void shouldExecuteTopUpSuccessfully() {
         // given
         UUID userId = UUID.randomUUID();
@@ -122,6 +128,7 @@ public class TransactionServiceTest {
         assertThat(response.amount()).isEqualByComparingTo(new BigDecimal("250.5000"));
 
         then(walletRepository).should(never()).save(any(Wallet.class));
+        then(eventPublisher).should().publishEvent(TransactionCompletedEvent.from(capturedTx));
         then(transactionMapper).should().toResponse(capturedTx);
     }
 
@@ -143,6 +150,7 @@ public class TransactionServiceTest {
 
         then(walletRepository).shouldHaveNoInteractions();
         then(transactionRepository).should(never()).save(any(Transaction.class));
+        then(eventPublisher).shouldHaveNoInteractions();
         then(transactionMapper).shouldHaveNoInteractions();
     }
 
@@ -165,6 +173,7 @@ public class TransactionServiceTest {
 
         then(transactionRepository).should(never()).getNextReferenceSequenceValue();
         then(transactionRepository).should(never()).save(any(Transaction.class));
+        then(eventPublisher).shouldHaveNoInteractions();
         then(transactionMapper).shouldHaveNoInteractions();
     }
 
@@ -191,6 +200,7 @@ public class TransactionServiceTest {
         assertThat(targetWallet.getBalance()).isEqualByComparingTo(new BigDecimal("0.0000"));
         then(transactionRepository).should(never()).getNextReferenceSequenceValue();
         then(transactionRepository).should(never()).save(any(Transaction.class));
+        then(eventPublisher).shouldHaveNoInteractions();
         then(transactionMapper).shouldHaveNoInteractions();
     }
 
@@ -217,6 +227,7 @@ public class TransactionServiceTest {
 
         assertThat(lockedWallet.getBalance()).isEqualByComparingTo(new BigDecimal("0.0000"));
         then(transactionRepository).should(never()).save(any(Transaction.class));
+        then(eventPublisher).shouldHaveNoInteractions();
         then(transactionMapper).shouldHaveNoInteractions();
     }
 
@@ -279,6 +290,7 @@ public class TransactionServiceTest {
         assertThat(response.referenceNumber()).isEqualTo("TRX0000042");
         assertThat(response.status()).isEqualTo(TransactionStatus.COMPLETED);
         then(walletRepository).should(never()).save(any(Wallet.class));
+        then(eventPublisher).should().publishEvent(TransactionCompletedEvent.from(capturedTx));
     }
 
     @Test
@@ -324,6 +336,7 @@ public class TransactionServiceTest {
         assertThat(recipientWallet.getBalance()).isEqualByComparingTo(new BigDecimal("150.0000"));
         assertThat(response.referenceNumber()).isEqualTo("TRX0000043");
         assertThat(response.status()).isEqualTo(TransactionStatus.COMPLETED);
+        then(eventPublisher).should().publishEvent(any(TransactionCompletedEvent.class));
     }
 
     @Test
@@ -347,6 +360,7 @@ public class TransactionServiceTest {
 
         then(transactionRepository).shouldHaveNoInteractions();
         then(walletRepository).shouldHaveNoInteractions();
+        then(eventPublisher).shouldHaveNoInteractions();
         then(transactionMapper).shouldHaveNoInteractions();
     }
 
@@ -383,6 +397,7 @@ public class TransactionServiceTest {
         assertThat(senderWallet.getBalance()).isEqualByComparingTo(new BigDecimal("40.0000"));
         assertThat(recipientWallet.getBalance()).isEqualByComparingTo(new BigDecimal("0.0000"));
         then(transactionRepository).should(never()).save(any(Transaction.class));
+        then(eventPublisher).shouldHaveNoInteractions();
         then(transactionMapper).shouldHaveNoInteractions();
     }
 
@@ -419,6 +434,7 @@ public class TransactionServiceTest {
         assertThat(attackerRecipientWallet.getBalance()).isEqualByComparingTo(new BigDecimal("0.0000"));
         then(transactionRepository).should(never()).getNextReferenceSequenceValue();
         then(transactionRepository).should(never()).save(any(Transaction.class));
+        then(eventPublisher).shouldHaveNoInteractions();
     }
 
     @Test
@@ -453,6 +469,7 @@ public class TransactionServiceTest {
                 .hasMessageContaining("in LOCKED state");
 
         then(transactionRepository).should(never()).save(any(Transaction.class));
+        then(eventPublisher).shouldHaveNoInteractions();
         then(transactionMapper).shouldHaveNoInteractions();
     }
 
