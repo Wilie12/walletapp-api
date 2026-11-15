@@ -21,15 +21,23 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import com.nn.walletapp_api.shared.api.response.PageResponse;
+import com.nn.walletapp_api.transaction.exception.TransactionNotFoundException;
+import com.nn.walletapp_api.transaction.exception.TransactionOwnershipException;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.List;
 
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 @WebMvcTest(controllers = TransactionController.class)
 public class TransactionControllerTest extends BaseControllerTest {
@@ -519,5 +527,136 @@ public class TransactionControllerTest extends BaseControllerTest {
                 .andExpect(jsonPath("$.invalidFields.recipientWalletId").value("Recipient wallet ID must not be null"));
 
         then(transactionService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/transactions should return 200 OK with paginated transaction history")
+    void shouldReturnPaginatedUserTransactions() throws Exception {
+        // given
+        UUID userId = UUID.randomUUID();
+        UUID walletId = UUID.randomUUID();
+        UUID transactionId = UUID.randomUUID();
+        RequesterContext expectedContext = new RequesterContext(userId, AccessLevel.STANDARD);
+
+        TransactionResponse txResponse = new TransactionResponse(
+                transactionId,
+                "TRX0000001",
+                UUID.randomUUID(),
+                null,
+                walletId,
+                new BigDecimal("100.0000"),
+                TransactionType.TOP_UP,
+                TransactionStatus.COMPLETED,
+                "Initial top-up",
+                FIXED_INSTANT
+        );
+        PageResponse<TransactionResponse> pageResponse = new PageResponse<>(
+                List.of(txResponse),
+                0,
+                20,
+                1L,
+                1,
+                true,
+                true
+        );
+
+        given(transactionService.getUserTransactions(eq(expectedContext), any(Pageable.class)))
+                .willReturn(pageResponse);
+
+        // when / then
+        mockMvc.perform(get("/api/v1/transactions")
+                        .with(SecurityTestUtils.validJwt(userId, "ROLE_USER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(transactionId.toString()))
+                .andExpect(jsonPath("$.content[0].referenceNumber").value("TRX0000001"))
+                .andExpect(jsonPath("$.content[0].amount").value(100.0))
+                .andExpect(jsonPath("$.content[0].type").value("TOP_UP"))
+                .andExpect(jsonPath("$.pageNumber").value(0))
+                .andExpect(jsonPath("$.pageSize").value(20))
+                .andExpect(jsonPath("$.totalElements").value(1));
+
+        then(transactionService).should().getUserTransactions(eq(expectedContext), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/transactions/{id} should return 200 OK when user is a transaction participant")
+    void shouldReturnTransactionByIdWhenParticipant() throws Exception {
+        // given
+        UUID userId = UUID.randomUUID();
+        UUID senderWalletId = UUID.randomUUID();
+        UUID recipientWalletId = UUID.randomUUID();
+        UUID transactionId = UUID.randomUUID();
+        RequesterContext expectedContext = new RequesterContext(userId, AccessLevel.STANDARD);
+
+        TransactionResponse response = new TransactionResponse(
+                transactionId,
+                "TRX0000055",
+                UUID.randomUUID(),
+                senderWalletId,
+                recipientWalletId,
+                new BigDecimal("45.0000"),
+                TransactionType.TRANSFER,
+                TransactionStatus.COMPLETED,
+                "Coffee split",
+                FIXED_INSTANT
+        );
+
+        given(transactionService.getTransactionById(transactionId, expectedContext)).willReturn(response);
+
+        // when / then
+        mockMvc.perform(get("/api/v1/transactions/{id}", transactionId)
+                        .with(SecurityTestUtils.validJwt(userId, "ROLE_USER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(transactionId.toString()))
+                .andExpect(jsonPath("$.referenceNumber").value("TRX0000055"))
+                .andExpect(jsonPath("$.senderWalletId").value(senderWalletId.toString()))
+                .andExpect(jsonPath("$.recipientWalletId").value(recipientWalletId.toString()))
+                .andExpect(jsonPath("$.amount").value(45.0));
+
+        then(transactionService).should().getTransactionById(transactionId, expectedContext);
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/transactions/{id} should return 403 Forbidden ProblemDetail on IDOR attempt")
+    void shouldReturn403ForbiddenWhenRequestingUnrelatedTransaction() throws Exception {
+        // given
+        UUID attackerId = UUID.randomUUID();
+        UUID transactionId = UUID.randomUUID();
+        RequesterContext attackerContext = new RequesterContext(attackerId, AccessLevel.STANDARD);
+
+        given(transactionService.getTransactionById(transactionId, attackerContext))
+                .willThrow(new TransactionOwnershipException("Security violation"));
+
+        // when / then
+        mockMvc.perform(get("/api/v1/transactions/{id}", transactionId)
+                        .with(SecurityTestUtils.validJwt(attackerId, "ROLE_USER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.title").value("Transaction Ownership Violation"))
+                .andExpect(jsonPath("$.detail").value("You do not have permission to access this transaction"))
+                .andExpect(jsonPath("$.type").value("https://api.walletapp.com/errors/transaction-ownership-violation"))
+                .andExpect(jsonPath("$.instance").value("/api/v1/transactions/" + transactionId))
+                .andExpect(jsonPath("$.timestamp").value("2026-10-31T12:00:00Z"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/transactions/{id} should return 404 Not Found when transaction does not exist")
+    void shouldReturn404NotFoundWhenTransactionDoesNotExist() throws Exception {
+        // given
+        UUID userId = UUID.randomUUID();
+        UUID missingTransactionId = UUID.randomUUID();
+        RequesterContext expectedContext = new RequesterContext(userId, AccessLevel.STANDARD);
+
+        given(transactionService.getTransactionById(missingTransactionId, expectedContext))
+                .willThrow(new TransactionNotFoundException(missingTransactionId));
+
+        // when / then
+        mockMvc.perform(get("/api/v1/transactions/{id}", missingTransactionId)
+                        .with(SecurityTestUtils.validJwt(userId, "ROLE_USER")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.title").value("Transaction Not Found"))
+                .andExpect(jsonPath("$.type").value("https://api.walletapp.com/errors/transaction-not-found"))
+                .andExpect(jsonPath("$.timestamp").value("2026-10-31T12:00:00Z"));
     }
 }
