@@ -1,0 +1,12 @@
+app:
+  security:
+    rate-limit:
+      enabled: ${APP_SECURITY_RATE_LIMIT_ENABLED:false}
+      capacity: ${APP_SECURITY_RATE_LIMIT_CAPACITY:10000}
+      refill-tokens: ${APP_SECURITY_RATE_LIMIT_REFILL_TOKENS:10000}
+      refill-duration-seconds: ${APP_SECURITY_RATE_LIMIT_REFILL_DURATION_SECONDS:60}
+
+logging:
+  level:
+    root: WARN
+    com.nn.walletapp_api: INFO

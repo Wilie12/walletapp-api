@@ -23,9 +23,10 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -145,5 +146,22 @@ public class RateLimitInterceptorTest {
                 .andExpect(jsonPath("$.detail").value("Quota exceeded. Please retry after 5 seconds."))
                 .andExpect(jsonPath("$.timestamp").value("2026-10-31T22:00:00Z"))
                 .andExpect(jsonPath("$.instance").value("/api/v1/wallets/me"));
+    }
+
+    @Test
+    @DisplayName("Should bypass token consumption when rate limiting is disabled via configuration")
+    void shouldBypassRateLimitingWhenDisabled() throws Exception {
+        // given
+        UUID userId = UUID.randomUUID();
+        given(rateLimitingService.isEnabled()).willReturn(false);
+
+        // when / then
+        mockMvc.perform(get("/api/v1/wallets/me")
+                        .with(SecurityTestUtils.validJwt(userId, "ROLE_USER")))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("X-RateLimit-Remaining"))
+                .andExpect(header().doesNotExist("Retry-After"));
+
+        then(rateLimitingService).should(never()).tryConsume(anyString(), anyLong());
     }
 }
