@@ -4,10 +4,18 @@ import com.nn.walletapp_api.wallet.exception.InsufficientFundsException;
 import com.nn.walletapp_api.wallet.exception.InvalidAmountException;
 import com.nn.walletapp_api.wallet.exception.WalletLockedException;
 import com.nn.walletapp_api.wallet.exception.WalletOwnershipException;
-import jakarta.persistence.*;
-import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.Version;
+import lombok.AccessLevel;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.ToString;
 import org.hibernate.envers.Audited;
 
 import java.math.BigDecimal;
@@ -55,11 +63,9 @@ public class Wallet {
     @Column(name = "version", nullable = false)
     private Long version;
 
-    @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
