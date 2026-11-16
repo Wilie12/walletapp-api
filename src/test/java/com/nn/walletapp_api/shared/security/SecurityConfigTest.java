@@ -40,6 +40,11 @@ class SecurityConfigTest {
         public String secureEndpoint() {
             return "secure";
         }
+
+        @GetMapping("/actuator/health/readiness")
+        public String readinessProbe() {
+            return "UP";
+        }
     }
 
     @Test
@@ -48,6 +53,14 @@ class SecurityConfigTest {
         // given / when / then
         mockMvc.perform(get("/api/v1/test-secure"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("Should allow unauthenticated access to actuator readiness probe")
+    void shouldAllowUnauthenticatedReadinessProbe() throws Exception {
+        // given / when / then
+        mockMvc.perform(get("/actuator/health/readiness"))
+                .andExpect(status().isOk());
     }
 
     @Test

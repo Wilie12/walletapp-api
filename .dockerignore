@@ -1,0 +1,24 @@
+# Git & CI metadata
+.git
+.gitignore
+.github
+
+# Local build artifacts
+target/
+build/
+out/
+
+# IDE & OS metadata
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Environment secrets & documentation
+.env
+.env.*
+!.env.example
+*.md
+*.docx
+*.txt

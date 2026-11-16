@@ -32,3 +32,6 @@ jobs:
 
       - name: Verify build and execute test suites
         run: ./mvnw clean verify -B -ntp
+
+      - name: Verify hardened Docker image build
+        run: docker build -t walletapp-api:ci .
