@@ -17,7 +17,6 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -42,7 +41,7 @@ public class WalletRepositoryTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("Should persist and retrieve wallet with precise scale and initial version")
+    @DisplayName("Should persist and retrieve wallet with precise scale, deterministic timestamps and initial version")
     void shouldPersistAndRetrieveWallet() {
         // given
         UUID ownerSub = UUID.randomUUID();
@@ -63,8 +62,8 @@ public class WalletRepositoryTest extends BaseIntegrationTest {
         assertThat(retrieved.getCurrency()).isEqualTo("PLN");
         assertThat(retrieved.getStatus()).isEqualTo(WalletStatus.ACTIVE);
         assertThat(retrieved.getVersion()).isNotNull().isZero();
-        assertThat(retrieved.getCreatedAt()).isNotNull();
-        assertThat(retrieved.getUpdatedAt()).isNotNull();
+        assertThat(retrieved.getCreatedAt()).isEqualTo(now);
+        assertThat(retrieved.getUpdatedAt()).isEqualTo(now);
     }
 
     @Test

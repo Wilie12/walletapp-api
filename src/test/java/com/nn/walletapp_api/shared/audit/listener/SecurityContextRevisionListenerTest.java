@@ -9,7 +9,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.UUID;
 
@@ -18,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class SecurityContextRevisionListenerTest {
 
     private final SecurityContextRevisionListener listener = new SecurityContextRevisionListener();
+    private final Clock fixedClock = Clock.fixed(Instant.parse("2026-11-16T14:00:00Z"), ZoneOffset.UTC);
 
     @AfterEach
     void clearSecurityContext() {
@@ -29,11 +32,12 @@ public class SecurityContextRevisionListenerTest {
     void shouldPopulateAuthorIdWhenJwtPresent() {
         // given
         UUID userId = UUID.randomUUID();
+        Instant now = Instant.now(fixedClock);
         Jwt jwt = Jwt.withTokenValue("mock-jwt")
                 .header("alg", "RS256")
                 .subject(userId.toString())
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(3600))
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(3600))
                 .build();
 
         JwtAuthenticationToken auth = new JwtAuthenticationToken(jwt, Collections.emptyList());

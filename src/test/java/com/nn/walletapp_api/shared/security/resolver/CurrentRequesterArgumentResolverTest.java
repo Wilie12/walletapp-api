@@ -22,18 +22,21 @@ import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
 public class CurrentRequesterArgumentResolverTest {
 
     private final CurrentRequesterArgumentResolver resolver = new CurrentRequesterArgumentResolver();
+    private final Clock fixedClock = Clock.fixed(Instant.parse("2026-11-16T14:00:00Z"), ZoneOffset.UTC);
 
     @Mock
     private MethodParameter parameter;
@@ -156,11 +159,12 @@ public class CurrentRequesterArgumentResolverTest {
     }
 
     private Jwt createJwt(String subject) {
+        Instant now = Instant.now(fixedClock);
         return Jwt.withTokenValue("mock-token")
                 .header("alg", "RS256")
                 .subject(subject)
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(3600))
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(3600))
                 .build();
     }
 
